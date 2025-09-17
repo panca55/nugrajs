@@ -10,5 +10,5 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*"],
-  "exclude": ["apps", "packages", "node_modules"]
+  "exclude": ["apps", "packages", "node_modules", "src/templates"]
 }
