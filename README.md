@@ -20,7 +20,7 @@ This framework is developed by **Panca Nugraha**.
 ## Installation
 
 ```bash
-npx create-nugrajs-app <project-name>
+npx nugrajs <project-name>
 ```
 
 ---
