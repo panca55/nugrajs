@@ -1,0 +1,5 @@
+export class <%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %> {
+  <% fields.forEach(f => { %>
+  <%= f.name %>: <%= f.type %>;
+  <% }) %>
+}

@@ -1,0 +1,9 @@
+import { Module } from "@nestjs/common";
+import { <%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %>Controller } from "./<%= entityName %>.controller";
+import { <%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %>Service } from "./<%= entityName %>.service";
+
+@Module({
+  controllers: [<%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %>Controller],
+  providers: [<%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %>Service]
+})
+export class <%= entityName.charAt(0).toUpperCase() + entityName.slice(1) %>Module {}
