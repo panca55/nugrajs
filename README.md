@@ -25,21 +25,40 @@ npx create-nugrajs-app <project-name>
 
 ## CLI Commands
 
+
 ### Project Initialization
 ```bash
 nugra create <project-name>
 ```
-Interactive project setup, choose frontend framework (**React**, **Vue**, **Angular**).
+Interactive project setup. Choose frontend framework (**React**, **Vue**, **Angular**).
 
 ### Module Generation
 ```bash
 nugra generate entity <name> --fields <fields>
 ```
-Generate backend CRUD (NestJS) and frontend components (React/Vue/Angular).  
+Generate backend CRUD (NestJS) and frontend components (React/Vue/Angular).
 
 **Example:**
 ```bash
 nugra generate entity user --fields "name:string,email:string"
+```
+
+### Development & Build
+```bash
+nugra run dev
+nugra run build
+```
+Run development servers for frontend and backend, or build both for production.
+
+### Install Packages
+```bash
+nugra install <package>
+nugra i <package>
+```
+Install npm package in project root. Use `--frontend` or `--backend` to install in frontend/backend folder:
+```bash
+nugra install axios --frontend
+nugra install @nestjs/config --backend
 ```
 
 ### Database Migration

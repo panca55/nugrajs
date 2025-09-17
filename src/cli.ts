@@ -1,3 +1,4 @@
+
 import inquirer from "inquirer";
 import { Command } from "commander";
 import { renderFile } from "ejs";
@@ -11,6 +12,107 @@ program
   .description("Show CLI help information")
   .action(() => {
     program.outputHelp();
+  });
+program
+  .command("install <package>")
+  .alias("i")
+  .description("Install npm package in project root")
+  .option("--frontend", "Install package in apps/frontend")
+  .option("--backend", "Install package in apps/backend")
+  .action((pkg, options) => {
+    const { spawnSync } = require("child_process");
+    let targetDir = process.cwd();
+    if (options.frontend) {
+      targetDir = path.join(process.cwd(), "apps/frontend");
+    } else if (options.backend) {
+      targetDir = path.join(process.cwd(), "apps/backend");
+    }
+    console.log(`Installing package '${pkg}' in ${targetDir}`);
+    const result = spawnSync("npm", ["install", pkg], { cwd: targetDir, stdio: "inherit", shell: true });
+    if (result.error) {
+      console.error("Failed to install package:", result.error.message);
+    }
+  });
+program
+  .command("run dev")
+  .description("Run development server for frontend and backend")
+  .action(() => {
+    const { spawn } = require("child_process");
+    const frontendDir = path.join(process.cwd(), "apps/frontend");
+    const backendDir = path.join(process.cwd(), "apps/backend");
+    let frontendCmd = "";
+    let frontendArgs: string[] = [];
+    // Detect frontend framework from package.json
+    let frontendType = "React";
+    try {
+      const pkgPath = path.join(frontendDir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        if (pkg.dependencies && pkg.dependencies["@angular/core"]) frontendType = "Angular";
+        else if (pkg.dependencies && pkg.dependencies["vue"]) frontendType = "Vue";
+      }
+    } catch {}
+    if (frontendType === "Angular") {
+      frontendCmd = "npx";
+      frontendArgs = ["ng", "serve"];
+    } else {
+      frontendCmd = "npx";
+      frontendArgs = ["vite"];
+    }
+    // Backend: NestJS
+    let backendCmd = "npm";
+    let backendArgs = ["run", "start:dev"];
+    console.log(`Starting frontend (${frontendType})...`);
+    const fe = spawn(frontendCmd, frontendArgs, { cwd: frontendDir, stdio: "inherit", shell: true });
+    console.log("Starting backend (NestJS)...");
+    const be = spawn(backendCmd, backendArgs, { cwd: backendDir, stdio: "inherit", shell: true });
+    fe.on("error", (err: any) => {
+      console.error("Failed to start frontend:", err.message);
+    });
+    be.on("error", (err: any) => {
+      console.error("Failed to start backend:", err.message);
+    });
+  });
+
+program
+  .command("run build")
+  .description("Build frontend and backend for production")
+  .action(() => {
+    const { spawnSync } = require("child_process");
+    const frontendDir = path.join(process.cwd(), "apps/frontend");
+    const backendDir = path.join(process.cwd(), "apps/backend");
+    let frontendCmd = "";
+    let frontendArgs: string[] = [];
+    // Detect frontend framework from package.json
+    let frontendType = "React";
+    try {
+      const pkgPath = path.join(frontendDir, "package.json");
+      if (fs.existsSync(pkgPath)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+        if (pkg.dependencies && pkg.dependencies["@angular/core"]) frontendType = "Angular";
+        else if (pkg.dependencies && pkg.dependencies["vue"]) frontendType = "Vue";
+      }
+    } catch {}
+    if (frontendType === "Angular") {
+      frontendCmd = "npx";
+      frontendArgs = ["ng", "build"];
+    } else {
+      frontendCmd = "npx";
+      frontendArgs = ["vite", "build"];
+    }
+    // Backend: NestJS
+    let backendCmd = "npm";
+    let backendArgs = ["run", "build"];
+    console.log(`Building frontend (${frontendType})...`);
+    const fe = spawnSync(frontendCmd, frontendArgs, { cwd: frontendDir, stdio: "inherit", shell: true });
+    if (fe.error) {
+      console.error("Failed to build frontend:", fe.error.message);
+    }
+    console.log("Building backend (NestJS)...");
+    const be = spawnSync(backendCmd, backendArgs, { cwd: backendDir, stdio: "inherit", shell: true });
+    if (be.error) {
+      console.error("Failed to build backend:", be.error.message);
+    }
   });
 
 program
