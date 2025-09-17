@@ -1,6 +1,6 @@
 {
   "name": "nugrajs",
-  "version": "0.2.5",
+  "version": "0.2.9",
   "main": "bin/nugra.js",
   "bin": {
     "nugra": "bin/nugra.js"
@@ -39,6 +39,13 @@
   ],
   "license": "MIT",
   "description": "A fullstack TypeScript framework for building scalable web applications with React and NestJS.",
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "package.json",
+    "README.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/panca55/nugrajs.git" 
