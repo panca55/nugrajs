@@ -25,6 +25,7 @@ program
   .command("create <project-name>")
   .description("Initialize a NugraJS project interactively")
   .action(async (projectName: string) => {
+  // ...existing code...
     // Ask for frontend framework
     const { frontend } = await inquirer.prompt([
       {
@@ -35,7 +36,7 @@ program
       },
     ]);
 
-  // Create folder structure
+    // Create folder structure
     const rootDir = path.join(process.cwd(), projectName);
     const appsDir = path.join(rootDir, "apps");
     const backendDir = path.join(appsDir, "backend");
@@ -49,14 +50,65 @@ program
     fs.mkdirSync(uiDir, { recursive: true });
     fs.mkdirSync(modelsDir, { recursive: true });
 
-  // Create README
-  fs.writeFileSync(path.join(rootDir, "README.md"), `# ${projectName}\n\nFrontend: ${frontend}\nBackend: NestJS`);
+  // Copy ESLint & Prettier config to frontend & backend
+  const eslintConfigSrc = path.join(__dirname, "templates/.eslintrc.json");
+  const prettierConfigSrc = path.join(__dirname, "templates/.prettierrc");
+  fs.copySync(eslintConfigSrc, path.join(frontendDir, ".eslintrc.json"));
+  fs.copySync(eslintConfigSrc, path.join(backendDir, ".eslintrc.json"));
+  fs.copySync(prettierConfigSrc, path.join(frontendDir, ".prettierrc"));
+  fs.copySync(prettierConfigSrc, path.join(backendDir, ".prettierrc"));
 
-  console.log(`✅ NugraJS monorepo structure for '${projectName}' created!`);
-  console.log(`- apps/frontend (${frontend})`);
-  console.log("- apps/backend (NestJS)");
-  console.log("- packages/ui");
-  console.log("- packages/models");
+  // Install ESLint, Prettier, TypeScript plugin dependencies
+  const lintDeps = "npm install --save-dev eslint prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-prettier eslint-config-prettier";
+  require("child_process").execSync(lintDeps, { cwd: frontendDir, stdio: "inherit" });
+  require("child_process").execSync(lintDeps, { cwd: backendDir, stdio: "inherit" });
+
+    // Copy frontend template files
+    let templateSrc = "";
+    if (frontend === "React") {
+      templateSrc = path.join(__dirname, "templates/react");
+    } else if (frontend === "Vue") {
+      templateSrc = path.join(__dirname, "templates/vue");
+    } else if (frontend === "Angular") {
+      templateSrc = path.join(__dirname, "templates/angular");
+    }
+    if (templateSrc && fs.existsSync(templateSrc)) {
+      fs.copySync(templateSrc, frontendDir);
+    }
+
+    // Copy Tailwind config files
+    fs.copySync(path.join(__dirname, "templates/tailwind.config.js"), path.join(frontendDir, "tailwind.config.js"));
+    fs.copySync(path.join(__dirname, "templates/postcss.config.js"), path.join(frontendDir, "postcss.config.js"));
+    // Copy index.css/styles.css
+    if (frontend === "React") {
+      fs.copySync(path.join(__dirname, "templates/react/index.css"), path.join(frontendDir, "index.css"));
+    } else if (frontend === "Vue") {
+      fs.copySync(path.join(__dirname, "templates/vue/index.css"), path.join(frontendDir, "index.css"));
+    } else if (frontend === "Angular") {
+      fs.copySync(path.join(__dirname, "templates/angular/styles.css"), path.join(frontendDir, "styles.css"));
+    }
+
+    // Install frontend dependencies + TailwindCSS
+    let installCmd = "";
+    if (frontend === "React") {
+      installCmd = `npm install react react-dom vite tailwindcss postcss autoprefixer`;
+    } else if (frontend === "Vue") {
+      installCmd = `npm install vue vite tailwindcss postcss autoprefixer`;
+    } else if (frontend === "Angular") {
+      installCmd = `npm install @angular/core @angular/platform-browser @angular/platform-browser-dynamic tailwindcss postcss autoprefixer`;
+    }
+    if (installCmd) {
+      require("child_process").execSync(installCmd, { cwd: frontendDir, stdio: "inherit" });
+    }
+
+    // Create README
+    fs.writeFileSync(path.join(rootDir, "README.md"), `# ${projectName}\n\nFrontend: ${frontend}\nBackend: NestJS`);
+
+    console.log(`✅ NugraJS monorepo structure for '${projectName}' created!`);
+    console.log(`- apps/frontend (${frontend})`);
+    console.log("- apps/backend (NestJS)");
+    console.log("- packages/ui");
+    console.log("- packages/models");
   });
 
 program
@@ -70,6 +122,18 @@ program
         })
       : [];
 
+
+    // Detect frontend type from README
+    let frontendType = "React";
+    try {
+      const readmePath = path.join(process.cwd(), "README.md");
+      if (fs.existsSync(readmePath)) {
+        const readmeContent = fs.readFileSync(readmePath, "utf8");
+        if (readmeContent.includes("Frontend: Vue")) frontendType = "Vue";
+        else if (readmeContent.includes("Frontend: Angular")) frontendType = "Angular";
+      }
+    } catch {}
+
     const templatesDir = path.join(__dirname, "templates/entity");
     const outputDirBackend = path.join(process.cwd(), "apps/backend/src/modules", name);
     const outputDirFrontend = path.join(process.cwd(), "apps/frontend/src/modules", name);
@@ -77,30 +141,62 @@ program
     fs.mkdirSync(outputDirBackend, { recursive: true });
     fs.mkdirSync(outputDirFrontend, { recursive: true });
 
-    const files = [
+    // Select frontend entity templates
+    let frontendFiles: string[] = [];
+    let frontendTemplateDir = "";
+    if (frontendType === "React") {
+      frontendFiles = ["list.tsx.ejs", "form.tsx.ejs", "detail.tsx.ejs"];
+      frontendTemplateDir = templatesDir;
+    } else if (frontendType === "Vue") {
+      frontendFiles = ["entity-list.vue.ejs", "entity-form.vue.ejs", "entity-detail.vue.ejs"];
+      frontendTemplateDir = path.join(__dirname, "templates/vue");
+    } else if (frontendType === "Angular") {
+      frontendFiles = ["entity-list.component.ts.ejs", "entity-form.component.ts.ejs", "entity-detail.component.ts.ejs"];
+      frontendTemplateDir = path.join(__dirname, "templates/angular");
+    }
+
+    const backendFiles = [
       "model.ts.ejs",
       "service.ts.ejs",
       "controller.ts.ejs",
-      "module.ts.ejs",
-      "list.tsx.ejs",
-      "form.tsx.ejs",
-      "detail.tsx.ejs"
+      "module.ts.ejs"
     ];
 
-    files.forEach(file => {
+    // Generate backend files
+    backendFiles.forEach(file => {
       const templatePath = path.join(templatesDir, file);
       const outputFile = path.join(
-        file.endsWith(".tsx.ejs") ? outputDirFrontend : outputDirBackend,
+        outputDirBackend,
         file.replace(".ejs", "")
           .replace("model", `${name}.model`)
           .replace("service", `${name}.service`)
           .replace("controller", `${name}.controller`)
           .replace("module", `${name}.module`)
-          .replace("list", `${capitalize(name)}List`)
-          .replace("form", `${capitalize(name)}Form`)
-          .replace("detail", `${capitalize(name)}Detail`)
       );
+      renderFile(templatePath, { entityName: name, fields }, (err: Error | null, result: string | undefined) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Generated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
 
+    // Generate frontend files
+    frontendFiles.forEach(file => {
+      const templatePath = path.join(frontendTemplateDir, file);
+      let outputFile = path.join(outputDirFrontend, file.replace(".ejs", ""));
+      if (frontendType === "React") {
+        outputFile = path.join(
+          outputDirFrontend,
+          file.replace(".ejs", "")
+            .replace("list", `${capitalize(name)}List`)
+            .replace("form", `${capitalize(name)}Form`)
+            .replace("detail", `${capitalize(name)}Detail`)
+        );
+      }
       renderFile(templatePath, { entityName: name, fields }, (err: Error | null, result: string | undefined) => {
         if (err) throw err;
         if (typeof result === "string") {

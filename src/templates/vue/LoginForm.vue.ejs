@@ -1,0 +1,27 @@
+<template>
+  <form @submit.prevent="onSubmit" style="max-width:400px;margin:auto;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:8px;display:flex;flex-direction:column;gap:1.5rem;background:#fff;">
+    <h2 style="margin-bottom:1rem;font-size:1.25rem;font-weight:bold;">Login</h2>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+      <label for="username" style="font-weight:500;">Username</label>
+      <input id="username" v-model="form.username" name="username" placeholder="Username" required style="padding:0.75rem;border-radius:4px;border:1px solid #ccc;" />
+    </div>
+    <div style="display:flex;flex-direction:column;gap:0.5rem;">
+      <label for="password" style="font-weight:500;">Password</label>
+      <input id="password" v-model="form.password" name="password" type="password" placeholder="Password" required style="padding:0.75rem;border-radius:4px;border:1px solid #ccc;" />
+    </div>
+    <button type="submit" style="padding:0.75rem 1.5rem;border:none;border-radius:4px;background:#007bff;color:#fff;font-weight:600;cursor:pointer;">Login</button>
+  </form>
+</template>
+<script>
+export default {
+  data() {
+    return { form: { username: '', password: '' } };
+  },
+  methods: {
+    onSubmit() {
+      // TODO: Call /auth/login API
+      alert('Login submitted: ' + JSON.stringify(this.form));
+    }
+  }
+};
+</script>

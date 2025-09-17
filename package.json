@@ -1,6 +1,6 @@
 {
   "name": "nugrajs",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "main": "bin/nugra.js",
   "bin": {
     "nugra": "bin/nugra.js"
@@ -21,5 +21,26 @@
     "@types/fs-extra": "^11.0.4",
     "ts-node": "^10.9.1",
     "typescript": "^5.3.3"
-  }
+  },
+  "keywords": [
+    "fullstack",
+    "monorepo",
+    "typescript",
+    "react",
+    "nestjs",
+    "cli",
+    "framework",
+    "turborepo",
+    "generator",
+    "crud",
+    "api",
+    "swagger",
+    "migration"
+  ],
+  "license": "MIT",
+  "description": "A fullstack TypeScript framework for building scalable web applications with React and NestJS.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/panca55/nugrajs.git" 
+    }
 }

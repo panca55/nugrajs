@@ -1,0 +1,20 @@
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'register-form',
+  template: `
+    <form (ngSubmit)="onSubmit()" style="max-width:400px;margin:auto;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,0.1);border-radius:8px;display:flex;flex-direction:column;gap:1.5rem;background:#fff;">
+      <h2 style="margin-bottom:1rem;font-size:1.25rem;font-weight:bold;">Register</h2>
+      <input [(ngModel)]="form.username" name="username" required placeholder="Username" style="padding:0.75rem;border-radius:4px;border:1px solid #ccc;" />
+      <input [(ngModel)]="form.password" name="password" type="password" required placeholder="Password" style="padding:0.75rem;border-radius:4px;border:1px solid #ccc;" />
+      <button type="submit" style="padding:0.75rem 1.5rem;border:none;border-radius:4px;background:#28a745;color:#fff;font-weight:600;cursor:pointer;">Register</button>
+    </form>
+  `
+})
+export class RegisterFormComponent {
+  form = { username: '', password: '' };
+  onSubmit() {
+    // TODO: Call /auth/register API
+    alert('Register submitted: ' + JSON.stringify(this.form));
+  }
+}

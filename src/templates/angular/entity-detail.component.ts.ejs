@@ -1,0 +1,16 @@
+import { Component, Input } from '@angular/core';
+
+@Component({
+  selector: 'entity-detail',
+  template: `
+    <div class="w-full max-w-md mx-auto p-4 bg-white rounded shadow">
+      <h2 class="text-xl font-bold mb-4">Detail {{ entityName }}</h2>
+      <p class="mb-2">ID: {{ item.id }}</p>
+      <p class="mb-2">Name: {{ item.name }}</p>
+    </div>
+  `
+})
+export class <%= entityName %>DetailComponent {
+  @Input() item: any;
+  entityName = '<%= entityName %>';
+}

@@ -1,0 +1,16 @@
+import React from 'react';
+
+export default function <%= entityName %>List({ items }) {
+  return (
+    <div className="w-full max-w-2xl mx-auto p-4">
+      <h2 className="text-xl font-bold mb-4">List <%= entityName %></h2>
+      <ul className="grid gap-2 md:grid-cols-2">
+        {items.map(item => (
+          <li key={item.id} className="bg-white rounded shadow p-3 flex flex-col md:flex-row md:items-center justify-between">
+            <span>{item.name}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

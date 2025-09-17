@@ -1,0 +1,16 @@
+import { Injectable } from '@nestjs/common';
+import { LoginDto, RegisterDto } from './auth.dto';
+import { User } from './user.entity';
+
+@Injectable()
+export class AuthService {
+  async login(loginDto: LoginDto): Promise<any> {
+    // TODO: Implement JWT login logic
+    return { access_token: 'dummy-token' };
+  }
+
+  async register(registerDto: RegisterDto): Promise<User> {
+    // TODO: Implement user registration logic
+    return { id: 1, username: registerDto.username } as User;
+  }
+}

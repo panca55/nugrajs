@@ -1,0 +1,19 @@
+import { Component, Input } from '@angular/core';
+
+@Component({
+  selector: 'entity-list',
+  template: `
+    <div class="w-full max-w-2xl mx-auto p-4">
+      <h2 class="text-xl font-bold mb-4">List {{ entityName }}</h2>
+      <ul class="grid gap-2 md:grid-cols-2">
+        <li *ngFor="let item of items" class="bg-white rounded shadow p-3 flex flex-col md:flex-row md:items-center justify-between">
+          <span>{{ item.name }}</span>
+        </li>
+      </ul>
+    </div>
+  `
+})
+export class <%= entityName %>ListComponent {
+  @Input() items: any[] = [];
+  entityName = '<%= entityName %>';
+}
