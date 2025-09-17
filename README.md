@@ -10,6 +10,8 @@ This framework is developed by **Panca Nugraha**.
 ![Monorepo](https://img.shields.io/badge/-Monorepo-blue) 
 ![TypeScript](https://img.shields.io/badge/-TypeScript-blue) 
 ![React](https://img.shields.io/badge/-React-blue) 
+![Angular](https://img.shields.io/badge/-Angular-blue)
+![Vue](https://img.shields.io/badge/-Vue-blue)  
 ![NestJS](https://img.shields.io/badge/-NestJS-blue) 
 ![Turborepo](https://img.shields.io/badge/-Turborepo-blue)
 

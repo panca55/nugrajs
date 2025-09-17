@@ -1,6 +1,6 @@
 {
   "name": "nugrajs",
-  "version": "0.2.1",
+  "version": "0.2.3",
   "main": "bin/nugra.js",
   "bin": {
     "nugra": "bin/nugra.js"
