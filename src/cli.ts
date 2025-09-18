@@ -1,4 +1,5 @@
 
+
 import inquirer from "inquirer";
 import { Command } from "commander";
 import { renderFile } from "ejs";
@@ -6,73 +7,354 @@ import fs from "fs-extra";
 import path from "path";
 
 const program = new Command();
-
 program
-  .command("help")
-  .description("Show CLI help information")
-  .action(() => {
-    program.outputHelp();
-  });
-program
-  .command("install <package>")
-  .alias("i")
-  .description("Install npm package in project root")
-  .option("--frontend", "Install package in apps/frontend")
-  .option("--backend", "Install package in apps/backend")
-  .action((pkg, options) => {
-    const { spawnSync } = require("child_process");
-    let targetDir = process.cwd();
-    if (options.frontend) {
-      targetDir = path.join(process.cwd(), "apps/frontend");
-    } else if (options.backend) {
-      targetDir = path.join(process.cwd(), "apps/backend");
+  .command("regenerate crud <name>")
+  .description("Regenerate UI, CRUD, and Database after model changes")
+  .action(async (name) => {
+    // Path to model
+  const modelsDir = path.join(process.cwd(), "App/models");
+    const modelPath = path.join(modelsDir, `${name}.model.ts`);
+    if (!fs.existsSync(modelPath)) {
+      console.error(`Model ${name} not found in packages/models. Please create and modify it first.`);
+      return;
     }
-    console.log(`Installing package '${pkg}' in ${targetDir}`);
-    const result = spawnSync("npm", ["install", pkg], { cwd: targetDir, stdio: "inherit", shell: true });
-    if (result.error) {
-      console.error("Failed to install package:", result.error.message);
+    // Read fields from model
+    const modelContent = fs.readFileSync(modelPath, "utf8");
+    const fieldRegex = /\s+(\w+): ([\w\[\]]+)/g;
+    const fields: { name: string; type: string }[] = [];
+    let match;
+    while ((match = fieldRegex.exec(modelContent)) !== null) {
+      if (match[1] !== "id") {
+        fields.push({ name: match[1], type: match[2] });
+      }
     }
-  });
-program
-  .command("run dev")
-  .description("Run development server for frontend and backend")
-  .action(() => {
-    const { spawn } = require("child_process");
-    const frontendDir = path.join(process.cwd(), "apps/frontend");
-    const backendDir = path.join(process.cwd(), "apps/backend");
-    let frontendCmd = "";
-    let frontendArgs: string[] = [];
-    // Detect frontend framework from package.json
+    // Overwrite backend CRUD files
+    const templatesDir = path.join(__dirname, "../src/templates/entity");
+    const outputDirBackend = path.join(process.cwd(), "apps/backend/src/modules", name);
+    fs.mkdirSync(outputDirBackend, { recursive: true });
+    const backendFiles = [
+      "model.ts.ejs",
+      "service.ts.ejs",
+      "controller.ts.ejs",
+      "module.ts.ejs"
+    ];
+    backendFiles.forEach(file => {
+      const templatePath = path.join(templatesDir, file);
+      const outputFile = path.join(
+        outputDirBackend,
+        file.replace(".ejs", "")
+          .replace("model", `${name}.model`)
+          .replace("service", `${name}.service`)
+          .replace("controller", `${name}.controller`)
+          .replace("module", `${name}.module`)
+      );
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Regenerated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
+    // Overwrite frontend UI files
     let frontendType = "React";
     try {
-      const pkgPath = path.join(frontendDir, "package.json");
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        if (pkg.dependencies && pkg.dependencies["@angular/core"]) frontendType = "Angular";
-        else if (pkg.dependencies && pkg.dependencies["vue"]) frontendType = "Vue";
+      const readmePath = path.join(process.cwd(), "README.md");
+      if (fs.existsSync(readmePath)) {
+        const readmeContent = fs.readFileSync(readmePath, "utf8");
+        if (readmeContent.includes("Frontend: Vue")) frontendType = "Vue";
+        else if (readmeContent.includes("Frontend: Angular")) frontendType = "Angular";
       }
-    } catch {}
-    if (frontendType === "Angular") {
-      frontendCmd = "npx";
-      frontendArgs = ["ng", "serve"];
-    } else {
-      frontendCmd = "npx";
-      frontendArgs = ["vite"];
+    } catch (e) {}
+    const outputDirFrontend = path.join(process.cwd(), "apps/frontend/src/modules", name);
+    fs.mkdirSync(outputDirFrontend, { recursive: true });
+    let frontendFiles: string[] = [];
+    let frontendTemplateDir = "";
+    if (frontendType === "React") {
+      frontendFiles = ["list.tsx.ejs", "form.tsx.ejs", "detail.tsx.ejs"];
+      frontendTemplateDir = templatesDir;
+    } else if (frontendType === "Vue") {
+      frontendFiles = ["entity-list.vue.ejs", "entity-form.vue.ejs", "entity-detail.vue.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/vue");
+    } else if (frontendType === "Angular") {
+      frontendFiles = ["entity-list.component.ts.ejs", "entity-form.component.ts.ejs", "entity-detail.component.ts.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/angular");
     }
-    // Backend: NestJS
-    let backendCmd = "npm";
-    let backendArgs = ["run", "start:dev"];
-    console.log(`Starting frontend (${frontendType})...`);
-    const fe = spawn(frontendCmd, frontendArgs, { cwd: frontendDir, stdio: "inherit", shell: true });
-    console.log("Starting backend (NestJS)...");
-    const be = spawn(backendCmd, backendArgs, { cwd: backendDir, stdio: "inherit", shell: true });
-    fe.on("error", (err: any) => {
-      console.error("Failed to start frontend:", err.message);
+    frontendFiles.forEach(file => {
+      const templatePath = path.join(frontendTemplateDir, file);
+      let outputFile = path.join(outputDirFrontend, file.replace(".ejs", ""));
+      if (frontendType === "React") {
+        outputFile = path.join(
+          outputDirFrontend,
+          file.replace(".ejs", "")
+            .replace("list", `${capitalize(name)}List`)
+            .replace("form", `${capitalize(name)}Form`)
+            .replace("detail", `${capitalize(name)}Detail`)
+        );
+      }
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Regenerated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
     });
-    be.on("error", (err: any) => {
-      console.error("Failed to start backend:", err.message);
+    // Update AppModule import if needed
+    const appModulePath = path.join(process.cwd(), "apps/backend/src/app.module.ts");
+    let appModuleContent = fs.readFileSync(appModulePath, "utf8");
+    const moduleClassName = `${capitalize(name)}Module`;
+    const moduleImportPath = `./modules/${name}/${name}.module`;
+    if (!appModuleContent.includes(moduleClassName)) {
+      appModuleContent = `import { ${moduleClassName} } from '${moduleImportPath}';\n` + appModuleContent;
+    }
+    appModuleContent = appModuleContent.replace(/imports:\s*\[([^\]]*)\]/, (match, p1) => {
+      if (p1.includes(moduleClassName)) return match;
+      return `imports: [${p1 ? p1 + ',' : ''} ${moduleClassName}]`;
     });
+    fs.writeFileSync(appModulePath, appModuleContent);
+    console.log(`✅ ${moduleClassName} automatically registered in AppModule`);
+    // TODO: Regenerate database migration if needed
   });
+function capitalize(str: string) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+// All commands must be chained to 'program' only once
+// Only one definition for 'generate crud <name>' command
+program
+  .command("generate crud <name>")
+  .description("Generate UI, CRUD, and Database from the modified model")
+  .action(async (name) => {
+    // Path to model
+  const modelsDir = path.join(process.cwd(), "App/models");
+    const modelPath = path.join(modelsDir, `${name}.model.ts`);
+    if (!fs.existsSync(modelPath)) {
+      console.error(`Model ${name} not found in packages/models. Please create and modify it first.`);
+      return;
+    }
+    // Read fields from model
+    const modelContent = fs.readFileSync(modelPath, "utf8");
+    // Simple: find field lines
+    const fieldRegex = /\s+(\w+): ([\w\[\]]+)/g;
+    const fields: { name: string; type: string }[] = [];
+    let match;
+    while ((match = fieldRegex.exec(modelContent)) !== null) {
+      if (match[1] !== "id") {
+        fields.push({ name: match[1], type: match[2] });
+      }
+    }
+    // Generate backend CRUD
+    const templatesDir = path.join(__dirname, "../src/templates/entity");
+    const outputDirBackend = path.join(process.cwd(), "apps/backend/src/modules", name);
+    fs.mkdirSync(outputDirBackend, { recursive: true });
+    const backendFiles = [
+      "model.ts.ejs",
+      "service.ts.ejs",
+      "controller.ts.ejs",
+      "module.ts.ejs"
+    ];
+    backendFiles.forEach(file => {
+      const templatePath = path.join(templatesDir, file);
+      const outputFile = path.join(
+        outputDirBackend,
+        file.replace(".ejs", "")
+          .replace("model", `${name}.model`)
+          .replace("service", `${name}.service`)
+          .replace("controller", `${name}.controller`)
+          .replace("module", `${name}.module`)
+      );
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Generated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
+    // Generate frontend UI
+    // Detect frontend type from README
+    let frontendType = "React";
+    try {
+      const readmePath = path.join(process.cwd(), "README.md");
+      if (fs.existsSync(readmePath)) {
+        const readmeContent = fs.readFileSync(readmePath, "utf8");
+        if (readmeContent.includes("Frontend: Vue")) frontendType = "Vue";
+        else if (readmeContent.includes("Frontend: Angular")) frontendType = "Angular";
+      }
+    } catch (e) {}
+    const outputDirFrontend = path.join(process.cwd(), "apps/frontend/src/modules", name);
+    fs.mkdirSync(outputDirFrontend, { recursive: true });
+    let frontendFiles: string[] = [];
+    let frontendTemplateDir = "";
+    if (frontendType === "React") {
+      frontendFiles = ["list.tsx.ejs", "form.tsx.ejs", "detail.tsx.ejs"];
+      frontendTemplateDir = templatesDir;
+    } else if (frontendType === "Vue") {
+      frontendFiles = ["entity-list.vue.ejs", "entity-form.vue.ejs", "entity-detail.vue.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/vue");
+    } else if (frontendType === "Angular") {
+      frontendFiles = ["entity-list.component.ts.ejs", "entity-form.component.ts.ejs", "entity-detail.component.ts.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/angular");
+    }
+    frontendFiles.forEach(file => {
+      const templatePath = path.join(frontendTemplateDir, file);
+      let outputFile = path.join(outputDirFrontend, file.replace(".ejs", ""));
+      if (frontendType === "React") {
+        outputFile = path.join(
+          outputDirFrontend,
+          file.replace(".ejs", "")
+            .replace("list", `${capitalize(name)}List`)
+            .replace("form", `${capitalize(name)}Form`)
+            .replace("detail", `${capitalize(name)}Detail`)
+        );
+      }
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Generated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
+    // Integrate into AppModule
+    const appModulePath = path.join(process.cwd(), "apps/backend/src/app.module.ts");
+    let appModuleContent = fs.readFileSync(appModulePath, "utf8");
+    const moduleClassName = `${capitalize(name)}Module`;
+    const moduleImportPath = `./modules/${name}/${name}.module`;
+    if (!appModuleContent.includes(moduleClassName)) {
+      appModuleContent = `import { ${moduleClassName} } from '${moduleImportPath}';\n` + appModuleContent;
+    }
+    appModuleContent = appModuleContent.replace(/imports:\s*\[([^\]]*)\]/, (match, p1) => {
+      if (p1.includes(moduleClassName)) return match;
+      return `imports: [${p1 ? p1 + ',' : ''} ${moduleClassName}]`;
+    });
+    fs.writeFileSync(appModulePath, appModuleContent);
+    console.log(`✅ ${moduleClassName} automatically registered in AppModule`);
+    // TODO: Generate database migration if needed
+  });
+
+program
+  .command("generate crud <name>")
+  .description("Generate UI, CRUD, dan Database dari model yang sudah dimodifikasi")
+  .action(async (name) => {
+    // Path model
+  const modelsDir = path.join(process.cwd(), "App/models");
+    const modelPath = path.join(modelsDir, `${name}.model.ts`);
+    if (!fs.existsSync(modelPath)) {
+      console.error(`Model ${name} belum ditemukan di packages/models. Silakan buat dan modifikasi terlebih dahulu.`);
+      return;
+    }
+    // Baca fields dari model
+    const modelContent = fs.readFileSync(modelPath, "utf8");
+    // Sederhana: cari baris field
+    const fieldRegex = /\s+(\w+): ([\w\[\]]+)/g;
+  const fields: { name: string; type: string }[] = [];
+    let match;
+    while ((match = fieldRegex.exec(modelContent)) !== null) {
+      if (match[1] !== "id") {
+        fields.push({ name: match[1], type: match[2] });
+      }
+    }
+    // Generate backend CRUD
+    const templatesDir = path.join(__dirname, "../src/templates/entity");
+    const outputDirBackend = path.join(process.cwd(), "apps/backend/src/modules", name);
+    fs.mkdirSync(outputDirBackend, { recursive: true });
+    const backendFiles = [
+      "model.ts.ejs",
+      "service.ts.ejs",
+      "controller.ts.ejs",
+      "module.ts.ejs"
+    ];
+    backendFiles.forEach(file => {
+      const templatePath = path.join(templatesDir, file);
+      const outputFile = path.join(
+        outputDirBackend,
+        file.replace(".ejs", "")
+          .replace("model", `${name}.model`)
+          .replace("service", `${name}.service`)
+          .replace("controller", `${name}.controller`)
+          .replace("module", `${name}.module`)
+      );
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Generated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
+    // Generate frontend UI
+    // Detect frontend type from README
+    let frontendType = "React";
+    try {
+      const readmePath = path.join(process.cwd(), "README.md");
+      if (fs.existsSync(readmePath)) {
+        const readmeContent = fs.readFileSync(readmePath, "utf8");
+        if (readmeContent.includes("Frontend: Vue")) frontendType = "Vue";
+        else if (readmeContent.includes("Frontend: Angular")) frontendType = "Angular";
+      }
+    } catch (e) {}
+    const outputDirFrontend = path.join(process.cwd(), "apps/frontend/src/modules", name);
+    fs.mkdirSync(outputDirFrontend, { recursive: true });
+    let frontendFiles: string[] = [];
+    let frontendTemplateDir = "";
+    if (frontendType === "React") {
+      frontendFiles = ["list.tsx.ejs", "form.tsx.ejs", "detail.tsx.ejs"];
+      frontendTemplateDir = templatesDir;
+    } else if (frontendType === "Vue") {
+      frontendFiles = ["entity-list.vue.ejs", "entity-form.vue.ejs", "entity-detail.vue.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/vue");
+    } else if (frontendType === "Angular") {
+      frontendFiles = ["entity-list.component.ts.ejs", "entity-form.component.ts.ejs", "entity-detail.component.ts.ejs"];
+      frontendTemplateDir = path.join(__dirname, "../src/templates/angular");
+    }
+    frontendFiles.forEach(file => {
+      const templatePath = path.join(frontendTemplateDir, file);
+      let outputFile = path.join(outputDirFrontend, file.replace(".ejs", ""));
+      if (frontendType === "React") {
+        outputFile = path.join(
+          outputDirFrontend,
+          file.replace(".ejs", "")
+            .replace("list", `${capitalize(name)}List`)
+            .replace("form", `${capitalize(name)}Form`)
+            .replace("detail", `${capitalize(name)}Detail`)
+        );
+      }
+      renderFile(templatePath, { entityName: name, fields }, (err, result) => {
+        if (err) throw err;
+        if (typeof result === "string") {
+          fs.writeFileSync(outputFile, result);
+          console.log(`✅ Generated ${outputFile}`);
+        } else {
+          throw new Error("Render file result is undefined");
+        }
+      });
+    });
+    // Integrate into AppModule
+    const appModulePath = path.join(process.cwd(), "apps/backend/src/app.module.ts");
+    let appModuleContent = fs.readFileSync(appModulePath, "utf8");
+    const moduleClassName = `${capitalize(name)}Module`;
+    const moduleImportPath = `./modules/${name}/${name}.module`;
+    if (!appModuleContent.includes(moduleClassName)) {
+      appModuleContent = `import { ${moduleClassName} } from '${moduleImportPath}';\n` + appModuleContent;
+    }
+    appModuleContent = appModuleContent.replace(/imports:\s*\[([^\]]*)\]/, (match, p1) => {
+      if (p1.includes(moduleClassName)) return match;
+      return `imports: [${p1 ? p1 + ',' : ''} ${moduleClassName}]`;
+    });
+    fs.writeFileSync(appModulePath, appModuleContent);
+    console.log(`✅ ${moduleClassName} automatically registered in AppModule`);
+    // TODO: Generate database migration if needed
 
 program
   .command("run build")
@@ -127,7 +409,6 @@ program
   .command("create <project-name>")
   .description("Initialize a NugraJS project interactively")
   .action(async (projectName: string) => {
-  // ...existing code...
     // Ask for frontend framework
     const { frontend } = await inquirer.prompt([
       {
@@ -150,44 +431,45 @@ program
     fs.mkdirSync(backendDir, { recursive: true });
     fs.mkdirSync(frontendDir, { recursive: true });
     fs.mkdirSync(uiDir, { recursive: true });
-    fs.mkdirSync(modelsDir, { recursive: true });
+  fs.mkdirSync(modelsDir, { recursive: true });
 
-  // Copy ESLint & Prettier config to frontend & backend
-  const eslintConfigSrc = path.join(__dirname, "templates/.eslintrc.json");
-  const prettierConfigSrc = path.join(__dirname, "templates/.prettierrc");
-  fs.copySync(eslintConfigSrc, path.join(frontendDir, ".eslintrc.json"));
-  fs.copySync(eslintConfigSrc, path.join(backendDir, ".eslintrc.json"));
-  fs.copySync(prettierConfigSrc, path.join(frontendDir, ".prettierrc"));
-  fs.copySync(prettierConfigSrc, path.join(backendDir, ".prettierrc"));
+    // Copy ESLint & Prettier config to frontend & backend
+    const templateDir = path.join(__dirname, "../src/templates");
+    const eslintConfigSrc = path.join(templateDir, ".eslintrc.json");
+    const prettierConfigSrc = path.join(templateDir, ".prettierrc");
+    fs.copySync(eslintConfigSrc, path.join(frontendDir, ".eslintrc.json"));
+    fs.copySync(eslintConfigSrc, path.join(backendDir, ".eslintrc.json"));
+    fs.copySync(prettierConfigSrc, path.join(frontendDir, ".prettierrc"));
+    fs.copySync(prettierConfigSrc, path.join(backendDir, ".prettierrc"));
 
-  // Install ESLint, Prettier, TypeScript plugin dependencies
-  const lintDeps = "npm install --save-dev eslint prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-prettier eslint-config-prettier";
-  require("child_process").execSync(lintDeps, { cwd: frontendDir, stdio: "inherit" });
-  require("child_process").execSync(lintDeps, { cwd: backendDir, stdio: "inherit" });
+    // Install ESLint, Prettier, TypeScript plugin dependencies
+    const lintDeps = "npm install --save-dev eslint prettier @typescript-eslint/eslint-plugin @typescript-eslint/parser eslint-plugin-prettier eslint-config-prettier";
+    require("child_process").execSync(lintDeps, { cwd: frontendDir, stdio: "inherit" });
+    require("child_process").execSync(lintDeps, { cwd: backendDir, stdio: "inherit" });
 
     // Copy frontend template files
     let templateSrc = "";
     if (frontend === "React") {
-      templateSrc = path.join(__dirname, "templates/react");
+      templateSrc = path.join(templateDir, "react");
     } else if (frontend === "Vue") {
-      templateSrc = path.join(__dirname, "templates/vue");
+      templateSrc = path.join(templateDir, "vue");
     } else if (frontend === "Angular") {
-      templateSrc = path.join(__dirname, "templates/angular");
+      templateSrc = path.join(templateDir, "angular");
     }
     if (templateSrc && fs.existsSync(templateSrc)) {
       fs.copySync(templateSrc, frontendDir);
     }
 
     // Copy Tailwind config files
-    fs.copySync(path.join(__dirname, "templates/tailwind.config.js"), path.join(frontendDir, "tailwind.config.js"));
-    fs.copySync(path.join(__dirname, "templates/postcss.config.js"), path.join(frontendDir, "postcss.config.js"));
+    fs.copySync(path.join(templateDir, "tailwind.config.js"), path.join(frontendDir, "tailwind.config.js"));
+    fs.copySync(path.join(templateDir, "postcss.config.js"), path.join(frontendDir, "postcss.config.js"));
     // Copy index.css/styles.css
     if (frontend === "React") {
-      fs.copySync(path.join(__dirname, "templates/react/index.css"), path.join(frontendDir, "index.css"));
+      fs.copySync(path.join(templateDir, "react/index.css"), path.join(frontendDir, "index.css"));
     } else if (frontend === "Vue") {
-      fs.copySync(path.join(__dirname, "templates/vue/index.css"), path.join(frontendDir, "index.css"));
+      fs.copySync(path.join(templateDir, "vue/index.css"), path.join(frontendDir, "index.css"));
     } else if (frontend === "Angular") {
-      fs.copySync(path.join(__dirname, "templates/angular/styles.css"), path.join(frontendDir, "styles.css"));
+      fs.copySync(path.join(templateDir, "angular/styles.css"), path.join(frontendDir, "styles.css"));
     }
 
     // Install frontend dependencies + TailwindCSS
@@ -215,118 +497,22 @@ program
 
 program
   .command("generate entity <name>")
-  .option("--fields <fields>", "Fields in format name:type,...")
+  .option("--type <type>", "Type: interface or class (default: class)")
   .action((name, options) => {
-    const fields = options.fields
-      ? options.fields.split(",").map((f: string) => {
-          const [fname, ftype] = f.split(":");
-          return { name: fname, type: ftype };
-        })
-      : [];
-
-
-    // Detect frontend type from README
-    let frontendType = "React";
-    try {
-      const readmePath = path.join(process.cwd(), "README.md");
-      if (fs.existsSync(readmePath)) {
-        const readmeContent = fs.readFileSync(readmePath, "utf8");
-        if (readmeContent.includes("Frontend: Vue")) frontendType = "Vue";
-        else if (readmeContent.includes("Frontend: Angular")) frontendType = "Angular";
-      }
-    } catch {}
-
-    const templatesDir = path.join(__dirname, "templates/entity");
-    const outputDirBackend = path.join(process.cwd(), "apps/backend/src/modules", name);
-    const outputDirFrontend = path.join(process.cwd(), "apps/frontend/src/modules", name);
-
-    fs.mkdirSync(outputDirBackend, { recursive: true });
-    fs.mkdirSync(outputDirFrontend, { recursive: true });
-
-    // Select frontend entity templates
-    let frontendFiles: string[] = [];
-    let frontendTemplateDir = "";
-    if (frontendType === "React") {
-      frontendFiles = ["list.tsx.ejs", "form.tsx.ejs", "detail.tsx.ejs"];
-      frontendTemplateDir = templatesDir;
-    } else if (frontendType === "Vue") {
-      frontendFiles = ["entity-list.vue.ejs", "entity-form.vue.ejs", "entity-detail.vue.ejs"];
-      frontendTemplateDir = path.join(__dirname, "templates/vue");
-    } else if (frontendType === "Angular") {
-      frontendFiles = ["entity-list.component.ts.ejs", "entity-form.component.ts.ejs", "entity-detail.component.ts.ejs"];
-      frontendTemplateDir = path.join(__dirname, "templates/angular");
+    // Only generate model file in packages/models
+  const modelsDir = path.join(process.cwd(), "App/models");
+  fs.mkdirSync(modelsDir, { recursive: true });
+    const type = options.type === "interface" ? "interface" : "class";
+    const fileName = `${name}.model.ts`;
+    const filePath = path.join(modelsDir, fileName);
+    let content = "";
+    if (type === "interface") {
+      content = `export interface ${capitalize(name)} {\n  id: string; // UUID\n  // Add other fields here\n}`;
+    } else {
+      content = `export class ${capitalize(name)} {\n  id: string; // UUID\n  // Add other fields here\n}`;
     }
-
-    const backendFiles = [
-      "model.ts.ejs",
-      "service.ts.ejs",
-      "controller.ts.ejs",
-      "module.ts.ejs"
-    ];
-
-    // Generate backend files
-    backendFiles.forEach(file => {
-      const templatePath = path.join(templatesDir, file);
-      const outputFile = path.join(
-        outputDirBackend,
-        file.replace(".ejs", "")
-          .replace("model", `${name}.model`)
-          .replace("service", `${name}.service`)
-          .replace("controller", `${name}.controller`)
-          .replace("module", `${name}.module`)
-      );
-      renderFile(templatePath, { entityName: name, fields }, (err: Error | null, result: string | undefined) => {
-        if (err) throw err;
-        if (typeof result === "string") {
-          fs.writeFileSync(outputFile, result);
-          console.log(`✅ Generated ${outputFile}`);
-        } else {
-          throw new Error("Render file result is undefined");
-        }
-      });
-    });
-
-    // Generate frontend files
-    frontendFiles.forEach(file => {
-      const templatePath = path.join(frontendTemplateDir, file);
-      let outputFile = path.join(outputDirFrontend, file.replace(".ejs", ""));
-      if (frontendType === "React") {
-        outputFile = path.join(
-          outputDirFrontend,
-          file.replace(".ejs", "")
-            .replace("list", `${capitalize(name)}List`)
-            .replace("form", `${capitalize(name)}Form`)
-            .replace("detail", `${capitalize(name)}Detail`)
-        );
-      }
-      renderFile(templatePath, { entityName: name, fields }, (err: Error | null, result: string | undefined) => {
-        if (err) throw err;
-        if (typeof result === "string") {
-          fs.writeFileSync(outputFile, result);
-          console.log(`✅ Generated ${outputFile}`);
-        } else {
-          throw new Error("Render file result is undefined");
-        }
-      });
-    });
-
-  // Automatically integrate to AppModule
-    const appModulePath = path.join(process.cwd(), "apps/backend/src/app.module.ts");
-    let appModuleContent = fs.readFileSync(appModulePath, "utf8");
-    const moduleClassName = `${capitalize(name)}Module`;
-    const moduleImportPath = `./modules/${name}/${name}.module`;
-
-    // Add import if not exists
-    if (!appModuleContent.includes(moduleClassName)) {
-      appModuleContent = `import { ${moduleClassName} } from '${moduleImportPath}';\n` + appModuleContent;
-    }
-    // Add to imports array
-    appModuleContent = appModuleContent.replace(/imports:\s*\[([^\]]*)\]/, (match, p1) => {
-      if (p1.includes(moduleClassName)) return match;
-      return `imports: [${p1 ? p1 + ',' : ''} ${moduleClassName}]`;
-    });
-    fs.writeFileSync(appModulePath, appModuleContent);
-    console.log(`✅ ${moduleClassName} automatically registered in AppModule`);
+    fs.writeFileSync(filePath, content);
+    console.log(`✅ Model ${fileName} created in packages/models. Please modify fields as needed.`);
   });
 
 program.parse(process.argv);
@@ -334,3 +520,4 @@ program.parse(process.argv);
 function capitalize(str: string) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+})

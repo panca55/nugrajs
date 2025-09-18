@@ -1,6 +1,6 @@
 {
   "name": "nugrajs",
-  "version": "0.2.9",
+  "version": "0.3.6",
   "main": "bin/nugra.js",
   "bin": {
     "nugra": "bin/nugra.js"
@@ -43,6 +43,7 @@
     "dist",
     "bin",
     "src",
+    "templates",
     "package.json",
     "README.md"
   ],
